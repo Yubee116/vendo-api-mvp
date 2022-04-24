@@ -4,7 +4,7 @@ require 'json'
 describe 'Vendo API SDK Tests' do
     describe VendoStoreFront::CartApi do
         describe '.create_new_cart' do
-            xit 'returns new cart data' do
+            it 'returns new cart data' do
                 result = VendoStoreFront::CartApi.new.create_new_cart()
                 
                 expect(result.code).to eq('201')
