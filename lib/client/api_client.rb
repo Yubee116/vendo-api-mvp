@@ -3,7 +3,15 @@ module VendoStoreFront
         def call_api(path, http_method, opts = {})
             http, request = build_request(path, http_method, opts)
                  
-            response = http.request(request)
+            begin
+                response = http.request(request)
+
+                fail VendoStoreFront::ApiError, response.code + " Error: " + JSON.parse(response.body)["error"] + " Invalid token, variant_id or line_item_id provided." if response.code == '404'
+                fail VendoStoreFront::ApiError, response.code + " Error: "  + JSON.parse(response.body)["error"] if response.code == '422'
+    
+            rescue Errno::ETIMEDOUT, Errno::ECONNREFUSED, Errno::EACCES, SocketError => e
+                puts e.class.to_s + ". Connection Error" 
+            end 
 
             return response
         end

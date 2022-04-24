@@ -1,4 +1,6 @@
-require 'vendo_storefront/cart_api'
+require 'simplecov'
+SimpleCov.start
+require 'vendo_storefront'
 require 'json'
 
 describe 'Vendo API SDK Tests' do
@@ -23,6 +25,26 @@ describe 'Vendo API SDK Tests' do
                 end
             end
 
+            context "given token with invalid length" do 
+                it "raises ArgumentError" do
+                    invalid_length_token = 'OL1-31K9RZAncY'
+                    expect{VendoStoreFront::CartApi.new.retrieve_cart(invalid_length_token)}.to raise_error(ArgumentError)
+                end
+            end
+
+            context "given invalid token" do 
+                it "raises APIError" do
+                    invalid_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+                    expect{VendoStoreFront::CartApi.new.retrieve_cart(invalid_token)}.to raise_error(VendoStoreFront::ApiError)
+                end
+            end
+
+            context "given no token" do 
+                it "raises ArgumentError" do
+                    expect{VendoStoreFront::CartApi.new.retrieve_cart()}.to raise_error(ArgumentError)
+                end
+            end
+
             context 'given valid token and to include line items' do
                 it 'returns cart including line items' do
                     token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
@@ -44,6 +66,15 @@ describe 'Vendo API SDK Tests' do
 
                     expect(result.code).to eq('200')
                     expect(JSON.parse(result.body)["data"]["relationships"]["variants"]["data"][0]["id"]).to eq(variant_id)
+                end
+            end
+
+            context "given invalid variant_id" do
+                it "raises APIError" do
+                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
+                    invalid_variant_id = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+                    
+                    expect{VendoStoreFront::CartApi.new.add_item_to_cart(token, invalid_variant_id)}.to raise_error(VendoStoreFront::ApiError)
                 end
             end
         end
