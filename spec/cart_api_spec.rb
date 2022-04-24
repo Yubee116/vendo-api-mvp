@@ -33,5 +33,20 @@ describe 'Vendo API SDK Tests' do
                 end
             end 
         end
+
+        describe '.add_item_to_cart' do
+            context "given valid variant_id" do
+                it "returns new cart data containing the added item" do
+                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
+                    variant_id = '862747fd-0720-45db-a906-10879b809857'
+                    
+                    result = VendoStoreFront::CartApi.new.add_item_to_cart(token, variant_id)
+
+                    expect(result.code).to eq('200')
+                    expect(JSON.parse(result.body)["data"]["relationships"]["variants"]["data"][0]["id"]).to eq(variant_id)
+                end
+            end
+        end
+
     end
 end
