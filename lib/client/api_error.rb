@@ -1,4 +1,4 @@
 module VendoStoreFront
-    class ApiError < StandardError
-    end
+  class ApiError < StandardError
+  end
 end
