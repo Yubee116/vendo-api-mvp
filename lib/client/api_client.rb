@@ -7,7 +7,7 @@ module VendoStoreFront
                 response = http.request(request)
 
                 fail VendoStoreFront::ApiError, response.code + " Error: " + JSON.parse(response.body)["error"] + " Invalid token, variant_id or line_item_id provided." if response.code == '404'
-                fail VendoStoreFront::ApiError, response.code + " Error: "  + JSON.parse(response.body)["error"] unless ["200", "201"].include?(response.code)
+                fail VendoStoreFront::ApiError, response.code + " Error: "  + JSON.parse(response.body)["error"] unless response.is_a?(Net::HTTPSuccess)
     
             rescue Errno::ETIMEDOUT, Errno::ECONNREFUSED, Errno::EACCES, SocketError => e
                 puts e.class.to_s + ". Connection Error" 

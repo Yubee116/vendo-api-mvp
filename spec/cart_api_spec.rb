@@ -1,45 +1,85 @@
-require 'simplecov'
-SimpleCov.start
-require 'vendo_storefront'
-require 'json'
+require 'spec_helper'
+
 
 describe 'Vendo API SDK Tests' do
+    def create_new_cart
+        VCR.use_cassette("cart_api/helper_methods/new-cart") do
+            new_cart = VendoStoreFront::ApiClient.new.call_api("cart","POST")
+            new_cart = JSON.parse(new_cart.body)
+            @token = new_cart["data"]["attributes"]["token"]
+        end
+    end
+
+    def get_valid_product_variant_id
+        VCR.use_cassette("cart_api/helper_methods/product-variants") do
+            products_list = VendoStoreFront::ApiClient.new.call_api("products", "GET")
+            products_list = JSON.parse(products_list.body)
+            @variant_id = products_list["data"][0]["relationships"]["variants"]["data"][0]["id"]
+        end
+    end
+
+    def get_valid_line_item_id
+        VCR.use_cassette("cart_api/helper_methods/line-item-id") do
+            cart_with_line_item = VendoStoreFront::ApiClient.new.call_api("cart/add_item", "POST", {:cart_token => @token, :variant_id => @variant_id, :quantity => 1})
+            cart_with_line_item = JSON.parse(cart_with_line_item.body)
+            @line_item_id = cart_with_line_item["data"]["relationships"]["line_items"]["data"][0]["id"]
+        end
+    end
+
+    def empty_cart
+        VCR.use_cassette("cart_api/helper_methods/empty-cart") do
+            VendoStoreFront::ApiClient.new.call_api("cart/empty", "PATCH", {:cart_token => @token})
+        end
+    end
+
+    before(:all) do
+        create_new_cart()
+        get_valid_product_variant_id() 
+    end
+
     describe VendoStoreFront::CartApi do
         describe '.create_new_cart' do
             it 'returns new cart data' do
-                result = VendoStoreFront::CartApi.new.create_new_cart()
-                
-                expect(result.code).to eq('201')
-                expect(JSON.parse(result.body)["data"]).not_to be(nil)
+                VCR.use_cassette("cart_api/new-cart") do
+                    result = VendoStoreFront::CartApi.new.create_new_cart()
+                    
+                    expect(result).to be_a(Net::HTTPSuccess)
+                    expect(JSON.parse(result.body)["data"]).not_to be(nil)
+                end
             end
         end
 
         describe '.fetch_exisiting_cart' do
             context 'given valid token' do 
                 it 'returns cart with the correct token' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    result = VendoStoreFront::CartApi.new.retrieve_cart(token)
+                    VCR.use_cassette("cart_api/fetch-cart-valid-token") do
                     
-                    expect(result.code).to eq('200')
-                    expect(JSON.parse(result.body)["data"]["attributes"]["token"]).to eq(token)
+                        token = @token
+                        result = VendoStoreFront::CartApi.new.retrieve_cart(token)
+                        
+                        expect(result).to be_a(Net::HTTPSuccess)
+                        expect(JSON.parse(result.body)["data"]["attributes"]["token"]).to eq(token)
+                    end
                 end
             end
 
             context 'given token with invalid length' do 
                 it 'raises ArgumentError' do
-                    invalid_length_token = 'OL1-31K9RZAncY'
+                    invalid_length_token = 'xxxxxxxxxx'
                     expect{VendoStoreFront::CartApi.new.retrieve_cart(invalid_length_token)}.to raise_error(ArgumentError)
                 end
             end
 
             context 'given invalid token' do 
                 it 'raises APIError' do
-                    invalid_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-                    expect{VendoStoreFront::CartApi.new.retrieve_cart(invalid_token)}.to raise_error(VendoStoreFront::ApiError)
+                    VCR.use_cassette("cart_api/fetch-cart-invalid-token") do
+                        invalid_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+                        expect{VendoStoreFront::CartApi.new.retrieve_cart(invalid_token)}.to raise_error(VendoStoreFront::ApiError)
+                    end
                 end
             end
 
-            context 'given no token' do 
+            context 'given no token' do
                 it 'raises ArgumentError' do
                     expect{VendoStoreFront::CartApi.new.retrieve_cart()}.to raise_error(ArgumentError)
                 end
@@ -47,11 +87,17 @@ describe 'Vendo API SDK Tests' do
 
             context 'given valid token and to include line items' do
                 it 'returns cart including line items' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    result = VendoStoreFront::CartApi.new.retrieve_cart(token, true)
-                    
-                    expect(result.code).to eq('200')
-                    expect(JSON.parse(result.body)["included"][0]["type"]).to eq("line_item")
+                    VCR.use_cassette("cart_api/fetch-cart-valid-token-include-line-items") do
+                        empty_cart()
+                        get_valid_line_item_id()
+
+                        token = @token
+                        
+                        result = VendoStoreFront::CartApi.new.retrieve_cart(token, true)
+                        
+                        expect(result).to be_a(Net::HTTPSuccess)
+                        expect(JSON.parse(result.body)["included"][0]["type"]).to eq("line_item")
+                    end
                 end
             end 
         end
@@ -59,22 +105,28 @@ describe 'Vendo API SDK Tests' do
         describe '.add_item_to_cart' do
             context 'given valid variant_id' do
                 it 'returns new cart data containing the added item' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    variant_id = '862747fd-0720-45db-a906-10879b809857'
-                    
-                    result = VendoStoreFront::CartApi.new.add_item_to_cart(token, variant_id)
+                    VCR.use_cassette("cart_api/add-to-cart-valid-product-id") do
+                        empty_cart()
+                        
+                        token = @token
+                        variant_id = @variant_id
+                        
+                        result = VendoStoreFront::CartApi.new.add_item_to_cart(token, variant_id)
 
-                    expect(result.code).to eq('200')
-                    expect(JSON.parse(result.body)["data"]["relationships"]["variants"]["data"][0]["id"]).to eq(variant_id)
+                        expect(result).to be_a(Net::HTTPSuccess)
+                        expect(JSON.parse(result.body)["data"]["relationships"]["variants"]["data"][0]["id"]).to eq(variant_id)
+                    end
                 end
             end
 
             context 'given invalid variant_id' do
                 it 'raises APIError' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    invalid_variant_id = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
-                    
-                    expect{VendoStoreFront::CartApi.new.add_item_to_cart(token, invalid_variant_id)}.to raise_error(VendoStoreFront::ApiError)
+                    VCR.use_cassette("cart_api/add-to-cart-invalid-product-id") do
+                        token = @token 
+                        invalid_variant_id = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+                        
+                        expect{VendoStoreFront::CartApi.new.add_item_to_cart(token, invalid_variant_id)}.to raise_error(VendoStoreFront::ApiError)
+                    end
                 end
             end
         end
@@ -82,24 +134,34 @@ describe 'Vendo API SDK Tests' do
         describe '.change_item_quantity' do
             context 'given valid line_item_id with sufficient quantity' do
                 it 'returns cart containing specified item quantity' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    line_item_id = '495e5d3e-5508-4ad9-a811-f33229730c5e'
-                    quantity = 3
-                    
-                    result = VendoStoreFront::CartApi.new.change_item_quantity(token, line_item_id, quantity)
+                    VCR.use_cassette("cart_api/change-item-quantity-valid-quantity") do
+                        empty_cart()
+                        get_valid_line_item_id()
+                        
+                        token = @token
+                        line_item_id = @line_item_id
+                        quantity = 3
+                        
+                        result = VendoStoreFront::CartApi.new.change_item_quantity(token, line_item_id, quantity)
 
-                    expect(result.code).to eq('200')
-                    expect(JSON.parse(result.body)["data"]["attributes"]["item_count"]).to eq(quantity)
+                        expect(result).to be_a(Net::HTTPSuccess)
+                        expect(JSON.parse(result.body)["data"]["attributes"]["item_count"]).to eq(quantity)
+                    end
                 end
             end
 
             context 'given valid line_item_id with INsufficient quantity' do
                 it 'raises API Error' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    line_item_id = '495e5d3e-5508-4ad9-a811-f33229730c5e'
-                    insufficient_quantity = 0
-                    
-                    expect{VendoStoreFront::CartApi.new.change_item_quantity(token, line_item_id, insufficient_quantity)}.to raise_error(VendoStoreFront::ApiError)
+                    VCR.use_cassette("cart_api/change-item-quantity-invalid-quantity") do
+                        empty_cart()
+                        get_valid_line_item_id()
+
+                        token = @token
+                        line_item_id = @line_item_id
+                        insufficient_quantity = 0
+                        
+                        expect{VendoStoreFront::CartApi.new.change_item_quantity(token, line_item_id, insufficient_quantity)}.to raise_error(VendoStoreFront::ApiError)
+                    end
                 end
             end
         end
@@ -107,45 +169,56 @@ describe 'Vendo API SDK Tests' do
         describe '.remove_item_from_cart' do
             context 'given valid line_item_id' do
                 it 'returns cart with 0 item count and removed line item id' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    line_item_id = '495e5d3e-5508-4ad9-a811-f33229730c5e'
+                    VCR.use_cassette("cart_api/remove-line-item-valid-id") do
+                        empty_cart()
+                        get_valid_line_item_id()
+                        
+                        token = @token
+                        line_item_id = @line_item_id
 
-                    result = VendoStoreFront::CartApi.new.remove_item_from_cart(token, line_item_id)
+                        result = VendoStoreFront::CartApi.new.remove_item_from_cart(token, line_item_id)
 
-                    expect(result.code).to eq('200')
-                    expect(JSON.parse(result.body)["data"]["attributes"]["item_count"]).to eq(0)
-                    expect(JSON.parse(result.body)["data"]["relationships"]["line_items"]["data"][0]["id"]).to eq(line_item_id)
+                        expect(result).to be_a(Net::HTTPSuccess)
+                        expect(JSON.parse(result.body)["data"]["attributes"]["item_count"]).to eq(0)
+                        expect(JSON.parse(result.body)["data"]["relationships"]["line_items"]["data"][0]["id"]).to eq(line_item_id)
+                    end
                 end
             end
 
             context 'given invalid line_item_id' do
                 it 'Raises ApiError' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    invalid_line_item_id = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+                    VCR.use_cassette("cart_api/remove-line-item-invalid-id") do
+                        token = @token
+                        invalid_line_item_id = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
-                    expect{VendoStoreFront::CartApi.new.remove_item_from_cart(token, invalid_line_item_id)}.to raise_error(VendoStoreFront::ApiError)
+                        expect{VendoStoreFront::CartApi.new.remove_item_from_cart(token, invalid_line_item_id)}.to raise_error(VendoStoreFront::ApiError)
+                    end
                 end
             end
         end
 
         describe 'apply_coupon_code' do
             context 'given valid coupon code' do
-                it 'returns cart with promotion data' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    coupon_code = 'test'
+                xit 'returns cart with promotion data' do
+                    VCR.use_cassette("cart_api/apply-coupon-valid-code") do
+                        token = @token
+                        coupon_code = 'test'
 
-                    result = VendoStoreFront::CartApi.new.apply_coupon_code(token, coupon_code)
-                    expect(result.code).to eq('200')
-                    expect(result["data"]["relationships"]["promotions"]["data"][0]["type"]).to eq("promotion")
+                        result = VendoStoreFront::CartApi.new.apply_coupon_code(token, coupon_code)
+                        expect(result).to be_a(Net::HTTPSuccess)
+                        expect(result["data"]["relationships"]["promotions"]["data"][0]["type"]).to eq("promotion")
+                    end
                 end
             end
 
             context 'given invalid coupon code' do
                 it 'raises ApiError' do
-                    token = 'eKl_OATDvP4EKd_DkecvNQ1650786031165'
-                    coupon_code = 'xxxxx'
+                    VCR.use_cassette("cart_api/apply-coupon-invalid-code") do
+                        token = @token
+                        coupon_code = 'xxxxx'
 
-                    expect{VendoStoreFront::CartApi.new.apply_coupon_code(token, coupon_code)}.to raise_error(VendoStoreFront::ApiError)
+                        expect{VendoStoreFront::CartApi.new.apply_coupon_code(token, coupon_code)}.to raise_error(VendoStoreFront::ApiError)
+                    end
                 end
             end
         end
