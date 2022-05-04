@@ -20,7 +20,11 @@ module VendoStoreFront
     end
 
     def build_request(path, http_method, opts = {})
-      url = URI("https://demo.getvendo.com/api/v2/storefront/#{path}")
+      url = if path == 'token'
+              URI('https://demo.getvendo.com/spree_oauth/token')
+            else
+              URI("https://demo.getvendo.com/api/v2/storefront/#{path}")
+            end
 
       http = Net::HTTP.new(url.host, url.port)
       http.use_ssl = true
