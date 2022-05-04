@@ -1,28 +1,25 @@
 require 'spec_helper'
 
 
-describe 'Vendo API SDK Tests' do
+describe 'Vendo API SDK Tests - Cart' do
     def create_new_cart
         VCR.use_cassette("cart_api/helper_methods/new-cart") do
             new_cart = VendoStoreFront::ApiClient.new.call_api("cart","POST")
-            new_cart = JSON.parse(new_cart.body)
-            @token = new_cart["data"]["attributes"]["token"]
+            @token = JSON.parse(new_cart.body)["data"]["attributes"]["token"]
         end
     end
 
     def get_valid_product_variant_id
         VCR.use_cassette("cart_api/helper_methods/product-variants") do
             products_list = VendoStoreFront::ApiClient.new.call_api("products", "GET")
-            products_list = JSON.parse(products_list.body)
-            @variant_id = products_list["data"][0]["relationships"]["variants"]["data"][0]["id"]
+            @variant_id = JSON.parse(products_list.body)["data"][0]["relationships"]["variants"]["data"][0]["id"]
         end
     end
 
     def get_valid_line_item_id
         VCR.use_cassette("cart_api/helper_methods/line-item-id") do
             cart_with_line_item = VendoStoreFront::ApiClient.new.call_api("cart/add_item", "POST", {:cart_token => @token, :variant_id => @variant_id, :quantity => 1})
-            cart_with_line_item = JSON.parse(cart_with_line_item.body)
-            @line_item_id = cart_with_line_item["data"]["relationships"]["line_items"]["data"][0]["id"]
+            @line_item_id = JSON.parse(cart_with_line_item.body)["data"]["relationships"]["line_items"]["data"][0]["id"]
         end
     end
 
