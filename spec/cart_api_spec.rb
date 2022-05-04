@@ -197,7 +197,7 @@ describe 'Vendo API SDK Tests - Cart' do
         xit 'returns cart with promotion data' do
           VCR.use_cassette('cart_api/apply-coupon-valid-code') do
             token = @token
-            coupon_code = 'test'
+            coupon_code = 'test' #this doesn't work for some reason
 
             result = VendoStoreFront::CartApi.new.apply_coupon_code(token, coupon_code)
             expect(result).to be_a(Net::HTTPSuccess)
