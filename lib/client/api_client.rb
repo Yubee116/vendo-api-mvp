@@ -20,6 +20,12 @@ module VendoStoreFront
     end
 
     def build_request(path, http_method, opts = {})
+      if opts[:include]
+        endpoint << '?include='
+        opts[:include].each do |resource|
+          endpoint << resource + '%2C'
+        end
+      end
       url = if path == 'token'
               URI('https://demo.getvendo.com/spree_oauth/token')
             else
@@ -45,11 +51,12 @@ module VendoStoreFront
       request['Content-Type'] = 'application/vnd.api+json' if %w[POST PATCH].include?(http_method)
       # request["X-Vendo-Order-Token"] header doesn't work for some reason
       request['X-Spree-Order-Token'] = opts[:cart_token] unless opts[:cart_token].nil?
+      request['Authorization'] = "Bearer #{opts[:bearer_token]}" unless opts[:bearer_token].nil?
 
       # configure request body
       request_body = {}
       opts.each do |key, value|
-        next if key == :cart_token
+        next if %i[cart_token bearer_token].include?(key)
 
         request_body[key] = value
       end
