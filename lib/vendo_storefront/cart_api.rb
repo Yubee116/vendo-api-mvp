@@ -7,16 +7,22 @@ module VendoStoreFront
     end
 
     def retrieve_cart(cart_token, include_line_items = false)
+      opts = {}
+      if cart_token.length == 43
+        opts[:bearer_token] = cart_token
+      else
+        opts[:cart_token] = cart_token
+      end
       # verify the required parameter 'cart_token' is set
       raise ArgumentError, "Missing the required parameter 'cart_token' when calling CartApi.retrieve_cart" if cart_token.nil?
       
       # verify 'cart_token' length is correct
-      raise ArgumentError, 'Invalid cart_token length when calling CartApi.retrieve_cart' if cart_token.length != 35
+      # raise ArgumentError, 'Invalid cart_token length when calling CartApi.retrieve_cart' if cart_token.length != 35
 
       if include_line_items
-        ApiClient.new.call_api('cart?include=line_items', 'GET', { cart_token: cart_token })
+        ApiClient.new.call_api('cart?include=line_items', 'GET', opts)#{ cart_token: cart_token })
       else
-        ApiClient.new.call_api('cart', 'GET', { cart_token: cart_token })
+        ApiClient.new.call_api('cart', 'GET', opts)#{ cart_token: cart_token })
       end
     end
 
